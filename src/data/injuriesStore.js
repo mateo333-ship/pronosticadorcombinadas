@@ -9,10 +9,17 @@
 // en Vercel porque ahi el disco no persiste entre peticiones.
 
 const fs = require("fs");
+const os = require("os");
 const path = require("path");
 const redisBackend = require("./../services/redisBackend");
 
-const FILE = path.join(__dirname, "injuries.json");
+// Mismo motivo que en cache.js: en Vercel solo se puede escribir en /tmp. Si
+// Redis no esta configurado, usamos esa carpeta como red de seguridad (las
+// notas no persistiran entre despliegues/instancias frias sin Redis, pero al
+// menos la app no se rompe).
+const FILE = process.env.VERCEL
+  ? path.join(os.tmpdir(), "barca-madrid-combinadas-injurias.json")
+  : path.join(__dirname, "injuries.json");
 const REDIS_HASH_KEY = "injuries:notes";
 
 function loadAllFromFile() {

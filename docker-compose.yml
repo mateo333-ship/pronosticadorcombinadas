@@ -1,0 +1,13 @@
+services:
+  web:
+    build: .
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    volumes:
+      # Para que las notas de lesiones y la cache sobrevivan a un
+      # rebuild/redeploy del contenedor.
+      - ./src/data:/app/src/data
+      - ./.cache:/app/.cache
+    restart: unless-stopped

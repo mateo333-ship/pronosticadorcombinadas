@@ -202,4 +202,5 @@ Este proyecto no debe usarse como sustituto del juicio propio, y mucho
 menos con dinero que no puedas permitirte perder. Si tú o alguien cercano
 tiene problemas para controlar el juego, en España puedes llamar
 gratuitamente al **900 200 225** (FEJAR — Federación Española de
-Jugadores de Azar Rehabilitados).
+Jugadores de Azar Rehabilitados). 
+ACTUALIZADO.

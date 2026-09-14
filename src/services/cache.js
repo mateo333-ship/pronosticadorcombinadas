@@ -12,10 +12,18 @@
 // importar que backend este activo.
 
 const fs = require("fs");
+const os = require("os");
 const path = require("path");
 const redisBackend = require("./redisBackend");
 
-const CACHE_DIR = path.join(__dirname, "..", "..", ".cache");
+// En Vercel el unico sitio del disco donde se puede escribir es /tmp (todo lo
+// demas, incluida la carpeta del proyecto, es de solo lectura). Si Redis no
+// esta configurado (o falla), usamos esa carpeta como red de seguridad para
+// no reventar la peticion con un error de "no such file or directory" -
+// aunque lo ideal en Vercel siempre es tener Redis activo (ver redisBackend.js).
+const CACHE_DIR = process.env.VERCEL
+  ? path.join(os.tmpdir(), "barca-madrid-combinadas-cache")
+  : path.join(__dirname, "..", "..", ".cache");
 const memory = new Map();
 
 function ensureCacheDir() {

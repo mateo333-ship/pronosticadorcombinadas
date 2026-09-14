@@ -109,7 +109,7 @@ function computeMatchProbabilities({ homeForm, awayForm, homeInjuries = [], away
   }
 
   let pHomeWin = 0, pDraw = 0, pAwayWin = 0;
-  let pOver25 = 0, pBttsYes = 0, pOver15 = 0;
+  let pOver25 = 0, pBttsYes = 0, pOver15 = 0, pOver35 = 0;
   for (let h = 0; h <= MAX_GOALS; h++) {
     for (let a = 0; a <= MAX_GOALS; a++) {
       const p = scoreMatrix[h][a];
@@ -118,6 +118,7 @@ function computeMatchProbabilities({ homeForm, awayForm, homeInjuries = [], away
       else pAwayWin += p;
       if (h + a > 2.5) pOver25 += p;
       if (h + a > 1.5) pOver15 += p;
+      if (h + a > 3.5) pOver35 += p;
       if (h > 0 && a > 0) pBttsYes += p;
     }
   }
@@ -130,6 +131,8 @@ function computeMatchProbabilities({ homeForm, awayForm, homeInjuries = [], away
     under25: 1 - pOver25,
     over15: pOver15,
     under15: 1 - pOver15,
+    over35: pOver35,
+    under35: 1 - pOver35,
     bttsYes: pBttsYes,
     bttsNo: 1 - pBttsYes,
     doubleChance1X: pHomeWin + pDraw,
@@ -160,12 +163,44 @@ function computeMatchProbabilities({ homeForm, awayForm, homeInjuries = [], away
     };
   }
 
+  // Probabilidades "empate no apuesta" (draw no bet): igual que 1X2 pero
+  // repartiendo el empate entre local/visitante segun su peso relativo, para
+  // poder comparar con la cuota real que ofrece Winamax para este mercado.
+  const noDrawTotal = modelProbs.homeWin + modelProbs.awayWin;
+  modelProbs.homeWinDrawNoBet = noDrawTotal > 0 ? modelProbs.homeWin / noDrawTotal : 0.5;
+  modelProbs.awayWinDrawNoBet = noDrawTotal > 0 ? modelProbs.awayWin / noDrawTotal : 0.5;
+
   return {
     expectedGoals: { home: round2(lambdaHome), away: round2(lambdaAway) },
     strengths: { home: homeStrength, away: awayStrength },
     probabilities: roundProbs(modelProbs),
     h2hUsed: !!(h2h && h2h.totalMatches >= 3),
+    // Matriz completa de probabilidad por marcador (0..MAX_GOALS x 0..MAX_GOALS).
+    // Se expone para poder calcular mercados cuya linea es dinamica (p.ej. el
+    // hándicap asiático que ofrezca Winamax en cada partido, ver markets.js).
+    scoreMatrix,
   };
+}
+
+/**
+ * Probabilidad de que `side` ("home" o "away") cubra un hándicap asiático de
+ * `point` goles, siguiendo el mismo convenio que The Odds API: el punto se
+ * suma a los goles de ese equipo antes de comparar (p.ej. point=-1 significa
+ * que ese equipo tiene que ganar por 2 o mas goles para cubrir la apuesta).
+ * No se modela el "push"/reembolso de las lineas enteras: se aproxima como
+ * "no cubierta" en caso de empate exacto en la linea, que es el criterio mas
+ * conservador y solo afecta a lineas enteras (-1, -2...), no a las .5 o .25/.75
+ * que son las mas habituales en el hándicap asiatico.
+ */
+function probCoverHandicap(scoreMatrix, side, point) {
+  let total = 0;
+  for (let h = 0; h < scoreMatrix.length; h++) {
+    for (let a = 0; a < scoreMatrix[h].length; a++) {
+      const diff = side === "home" ? h - a : a - h;
+      if (diff + point > 0) total += scoreMatrix[h][a];
+    }
+  }
+  return Math.round(total * 1000) / 1000;
 }
 
 function clamp(v, min, max) {
@@ -180,4 +215,10 @@ function roundProbs(obj) {
   return out;
 }
 
-module.exports = { computeMatchProbabilities, computeTeamStrength, applyInjuryImpact, LEAGUE_AVG_GOALS };
+module.exports = {
+  computeMatchProbabilities,
+  computeTeamStrength,
+  applyInjuryImpact,
+  probCoverHandicap,
+  LEAGUE_AVG_GOALS,
+};

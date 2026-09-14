@@ -23,24 +23,33 @@
   <main>
     <!-- DASHBOARD -->
     <section id="tab-dashboard" class="tab-panel active">
-      <div class="panel-header">
-        <h2>Próximos partidos</h2>
-        <p class="muted">La Liga y Champions League — Barcelona y Real Madrid destacados. Los datos de forma, lesiones y cuotas se combinan en un modelo estadístico (Poisson) para estimar probabilidades.</p>
+      <div class="panel-header panel-header-row">
+        <div>
+          <h2>Próximos partidos</h2>
+          <p class="muted">La Liga y Champions League — Barcelona y Real Madrid destacados. Los datos de forma, lesiones y cuotas se combinan en un modelo estadístico (Poisson) para estimar probabilidades.</p>
+        </div>
+        <button id="refresh-matches-btn" class="btn-refresh" title="Volver a pedir los partidos a football-data.org">⟳ Actualizar</button>
       </div>
       <div id="matches-list" class="matches-grid">Cargando partidos…</div>
     </section>
 
     <!-- MATCH REPORT (modal-like panel) -->
     <section id="tab-report" class="tab-panel">
-      <button class="back-btn" id="back-to-dashboard">← Volver a partidos</button>
+      <div class="report-topbar">
+        <button class="back-btn" id="back-to-dashboard">← Volver a partidos</button>
+        <button id="refresh-report-btn" class="btn-refresh" title="Volver a pedir las cuotas de este partido a Winamax">⟳ Actualizar cuotas</button>
+      </div>
       <div id="report-content">Cargando informe…</div>
     </section>
 
     <!-- COMBINADA BUILDER -->
     <section id="tab-combinada" class="tab-panel">
-      <div class="panel-header">
-        <h2>Constructor de combinada</h2>
-        <p class="muted">Añade selecciones desde los informes de partido (botón "Añadir a combinada") o elige aquí manualmente. Analiza la probabilidad conjunta y la cuota combinada, y pide sugerencias para optimizarla.</p>
+      <div class="panel-header panel-header-row">
+        <div>
+          <h2>Constructor de combinada</h2>
+          <p class="muted">Añade selecciones desde los informes de partido (botón "Añadir a combinada") o elige aquí manualmente. Analiza la probabilidad conjunta y la cuota combinada, y pide sugerencias para optimizarla.</p>
+        </div>
+        <button id="refresh-combinada-btn" class="btn-refresh" title="Volver a pedir cuotas frescas para las selecciones actuales">⟳ Actualizar cuotas</button>
       </div>
 
       <div class="combinada-layout">
@@ -73,9 +82,12 @@
 
     <!-- INJURIES -->
     <section id="tab-lesiones" class="tab-panel">
-      <div class="panel-header">
-        <h2>Lesiones y bajas (manual)</h2>
-        <p class="muted">El plan gratuito de datos no incluye un parte médico automático. Añade aquí bajas relevantes (lesión, sanción, ausencia) para que el modelo estadístico las tenga en cuenta al calcular las probabilidades.</p>
+      <div class="panel-header panel-header-row">
+        <div>
+          <h2>Lesiones y bajas (manual)</h2>
+          <p class="muted">El plan gratuito de datos no incluye un parte médico automático. Añade aquí bajas relevantes (lesión, sanción, ausencia) para que el modelo estadístico las tenga en cuenta al calcular las probabilidades.</p>
+        </div>
+        <button id="refresh-injuries-btn" class="btn-refresh" title="Recargar la lista de notas guardadas">⟳ Actualizar</button>
       </div>
       <form id="injury-form" class="injury-form card">
         <label>Equipo

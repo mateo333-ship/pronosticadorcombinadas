@@ -19,10 +19,15 @@ de una API pública de terceros (The Odds API). Juega con responsabilidad.
 
 Hace:
 - Lista los próximos partidos de La Liga y Champions League (con Barça/Madrid destacados).
-- Calcula, para cada partido, goles esperados y probabilidades (1X2, doble oportunidad, over/under de goles, ambos marcan) con un modelo de Poisson basado en la forma reciente de cada equipo, ajustado por el historial de enfrentamientos directos y por lesiones que introduzcas manualmente.
-- Compara esas probabilidades con la cuota real de Winamax (obtenida vía The Odds API) para ver dónde el modelo cree que hay más o menos valor.
+- Calcula, para cada partido, goles esperados y probabilidades con un modelo de Poisson basado en la forma reciente de cada equipo, ajustado por el historial de enfrentamientos directos y por lesiones que introduzcas manualmente. Mercados cubiertos: **1X2**, **doble oportunidad**, **over/under de goles** (1.5, 2.5 y 3.5), **ambos marcan**, **empate no apuesta** y **hándicap asiático** (este último solo cuando Winamax ofrece una línea para ese partido concreto).
+- Compara esas probabilidades con la cuota real de Winamax (obtenida vía The Odds API) para ver dónde el modelo cree que hay más o menos valor. No todos los mercados tienen cuota disponible en el plan gratuito de The Odds API (por ejemplo, doble oportunidad y las líneas de goles 1.5/3.5 se muestran solo con la probabilidad del modelo, sin cuota).
 - Deja construir una combinada seleccionando mercados de varios partidos, calcula su probabilidad conjunta, cuota combinada y valor esperado.
 - Sugiere modificar la combinada para (a) subir la probabilidad de acertarla, cambiando patas por mercados más seguros del mismo partido, o (b) subir la cuota, cambiando patas por otras de más cuota (con un mínimo de probabilidad razonable) o añadiendo una pata extra de otro partido.
+- Botón **"Actualizar"** en cada pestaña (Partidos, informe de un partido, Combinada y Lesiones) para forzar una consulta nueva a las APIs saltando la caché, por si ha salido un partido o cambiado una cuota desde el último refresco automático. Para no gastar de más las cuotas gratuitas si se pulsa varias veces seguidas, cada actualización forzada tiene un pequeño margen de espera mínimo (20s para partidos, 60s para cuotas) antes de volver a golpear la API de verdad.
+
+Lo que NO cubre por limitación de los planes gratuitos (ver también sección 8):
+- Estadísticas y mercados de jugador (goleador, tarjetas de un jugador, asistencias...): requieren un proveedor de datos de pago.
+- Córners y tarjetas totales del partido: no siempre disponibles en el plan gratuito de The Odds API para todas las ligas/partidos.
 
 NO hace (y es importante saberlo):
 - **No hace scraping de Winamax.** No existe una forma fiable ni permitida de "conectarse" directamente a la web de Winamax para leer sus cuotas en vivo. Las cuotas vienen de **The Odds API**, un agregador de terceros que sí tiene autorización para redistribuir cuotas de varias casas, incluida Winamax (bookmaker `winamax_fr`).
@@ -179,7 +184,7 @@ explica arriba, no depende de él para tener datos frescos.
 ## 5. Límites a tener en cuenta
 
 - **football-data.org (Free):** 10 peticiones/minuto. La app respeta esto con un limitador interno y cachea resultados, pero si despliegas varias instancias a la vez podrías superarlo.
-- **The Odds API (Free):** 500 créditos/mes. Con el refresco cada 6 horas por defecto y 2 competiciones (La Liga + Champions), el consumo mensual aproximado es bajo, pero si lo bajas a refrescos más frecuentes o añades más ligas, vigila tu consumo (la consola imprime `creditos usados/restantes` en cada llamada).
+- **The Odds API (Free):** 500 créditos/mes. Cada llamada pide 5 mercados (1X2, over/under, ambos marcan, empate no apuesta y hándicap), así que cuesta unos 5 créditos. Con el refresco cada 6 horas por defecto y 2 competiciones (La Liga + Champions) el consumo mensual aproximado sigue siendo bajo para uso personal, pero si lo bajas a refrescos más frecuentes, añades más ligas, o usas mucho el botón "Actualizar" (que salta la caché), vigila tu consumo en tu panel de https://the-odds-api.com/account (la consola del servidor también imprime `creditos usados/restantes` en cada llamada).
 - **Lesiones:** no hay ninguna API gratuita fiable de bajas en tiempo real integrada. Añádelas a mano en la pestaña "Lesiones / bajas" cuando sepas de una baja importante.
 - **Independencia estadística:** el cálculo de la combinada multiplica probabilidades asumiendo independencia entre patas. Esto es razonable si las patas son de partidos distintos y sin relación, pero **no** lo es si combinas varios mercados del mismo partido (la app te avisa con un aviso amarillo cuando lo detecta).
 - **Vercel + Upstash (Free):** el plan gratuito de Upstash tiene su propio límite de peticiones diarias/mensuales (consulta el actual en tu panel de Upstash, cambia de vez en cuando). Con el tráfico típico de un proyecto personal no deberías acercarte a él, pero si notas errores relacionados con Redis en los logs de Vercel, es lo primero a revisar.
@@ -202,5 +207,4 @@ Este proyecto no debe usarse como sustituto del juicio propio, y mucho
 menos con dinero que no puedas permitirte perder. Si tú o alguien cercano
 tiene problemas para controlar el juego, en España puedes llamar
 gratuitamente al **900 200 225** (FEJAR — Federación Española de
-Jugadores de Azar Rehabilitados). 
-ACTUALIZADO..
+Jugadores de Azar Rehabilitados).

@@ -102,4 +102,17 @@ async function getStaleValueEvenIfExpired(key) {
   return null;
 }
 
-module.exports = { get, set, getStaleValueEvenIfExpired };
+// Proteccion sencilla para el boton "Actualizar" del frontend: permite saltar
+// la cache y pedir datos frescos a la API externa, pero solo una vez cada
+// `minIntervalMs` por cada `key` (aunque el usuario pulse el boton varias
+// veces seguidas). Asi evitamos gastar de mas las cuotas gratuitas de las
+// APIs si alguien le da varias veces rapido al boton.
+async function tryConsumeForceRefresh(key, minIntervalMs) {
+  const cooldownKey = `forcecooldown:${key}`;
+  const active = await get(cooldownKey);
+  if (active) return false;
+  await set(cooldownKey, true, minIntervalMs);
+  return true;
+}
+
+module.exports = { get, set, getStaleValueEvenIfExpired, tryConsumeForceRefresh };

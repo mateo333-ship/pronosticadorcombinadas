@@ -28,12 +28,23 @@ async function apiGet(pathname, params = {}) {
  * Proximos partidos de las competiciones seguidas (La Liga, Champions),
  * marcando cuales tienen a Barcelona o Real Madrid.
  */
-async function getUpcomingMatches({ daysAhead = 14 } = {}) {
+async function getUpcomingMatches({ daysAhead = 14, forceRefresh = false } = {}) {
   if (config.useMockData) return mockMatches;
 
   const cacheKey = `matches_${daysAhead}`;
-  const cached = await cache.get(cacheKey);
-  if (cached) return cached;
+
+  // Si el usuario pulsa "Actualizar" en el frontend, saltamos la cache para
+  // traer partidos nuevos de verdad (con un pequeno margen de seguridad para
+  // no golpear la API si alguien le da varias veces seguidas al boton).
+  let skipCache = false;
+  if (forceRefresh) {
+    skipCache = await cache.tryConsumeForceRefresh(cacheKey, 20000);
+  }
+
+  if (!skipCache) {
+    const cached = await cache.get(cacheKey);
+    if (cached) return cached;
+  }
 
   const dateFrom = new Date().toISOString().slice(0, 10);
   const dateTo = new Date(Date.now() + daysAhead * 86400000).toISOString().slice(0, 10);

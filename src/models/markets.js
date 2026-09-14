@@ -4,6 +4,8 @@
 // Winamax. Estos candidatos son la materia prima tanto del informe de
 // partido como del constructor/optimizador de combinadas.
 
+const { probCoverHandicap } = require("./probability");
+
 function buildMarketCandidates(match, probResult, odds) {
   const p = probResult.probabilities;
   const home = match.homeTeam.name;
@@ -94,7 +96,59 @@ function buildMarketCandidates(match, probResult, odds) {
       probability: p.bttsNo,
       odds: odds?.markets?.btts?.no ?? null,
     },
+    {
+      market: "GOLES",
+      selection: "OVER_3_5",
+      label: "Más de 3.5 goles",
+      probability: p.over35,
+      odds: null, // Winamax no expone esta linea en el plan gratuito de The Odds API
+    },
+    {
+      market: "GOLES",
+      selection: "UNDER_3_5",
+      label: "Menos de 3.5 goles",
+      probability: p.under35,
+      odds: null,
+    },
+    {
+      market: "EMPATE_NO_APUESTA",
+      selection: "1",
+      label: `${home} (empate no apuesta)`,
+      probability: p.homeWinDrawNoBet,
+      odds: odds?.markets?.draw_no_bet?.home ?? null,
+    },
+    {
+      market: "EMPATE_NO_APUESTA",
+      selection: "2",
+      label: `${away} (empate no apuesta)`,
+      probability: p.awayWinDrawNoBet,
+      odds: odds?.markets?.draw_no_bet?.away ?? null,
+    },
   ];
+
+  // Hándicap asiático: la linea la decide Winamax caso por caso, asi que solo
+  // mostramos este mercado cuando la API nos ha devuelto una cuota real para
+  // esta linea concreta (si no, no tendria sentido inventarnos una linea).
+  const spreads = odds?.markets?.spreads;
+  if (spreads?.home && spreads?.away && probResult.scoreMatrix) {
+    const fmtPoint = (pt) => (pt > 0 ? `+${pt}` : `${pt}`);
+    candidates.push(
+      {
+        market: "HANDICAP",
+        selection: "HOME",
+        label: `Hándicap ${fmtPoint(spreads.home.point)} (${home})`,
+        probability: probCoverHandicap(probResult.scoreMatrix, "home", spreads.home.point),
+        odds: spreads.home.price ?? null,
+      },
+      {
+        market: "HANDICAP",
+        selection: "AWAY",
+        label: `Hándicap ${fmtPoint(spreads.away.point)} (${away})`,
+        probability: probCoverHandicap(probResult.scoreMatrix, "away", spreads.away.point),
+        odds: spreads.away.price ?? null,
+      }
+    );
+  }
 
   return candidates.map((c) => ({
     ...c,

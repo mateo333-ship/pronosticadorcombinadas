@@ -97,6 +97,8 @@ const mockOdds = {
       h2h: { home: 1.45, draw: 4.6, away: 6.5 },
       totals_2_5: { over: 1.6, under: 2.25 },
       btts: { yes: 1.55, no: 2.35 },
+      draw_no_bet: { home: 1.18, away: 5.2 },
+      spreads: { home: { point: -1.5, price: 2.05 }, away: { point: 1.5, price: 1.75 } },
     },
   },
   "mock-2": {
@@ -105,6 +107,8 @@ const mockOdds = {
       h2h: { home: 3.4, draw: 3.5, away: 2.05 },
       totals_2_5: { over: 1.9, under: 1.85 },
       btts: { yes: 1.7, no: 2.05 },
+      draw_no_bet: { home: 1.95, away: 1.45 },
+      spreads: { home: { point: 0.5, price: 1.9 }, away: { point: -0.5, price: 1.9 } },
     },
   },
   "mock-3": {
@@ -113,6 +117,8 @@ const mockOdds = {
       h2h: { home: 2.1, draw: 3.6, away: 3.2 },
       totals_2_5: { over: 1.65, under: 2.15 },
       btts: { yes: 1.5, no: 2.5 },
+      draw_no_bet: { home: 1.55, away: 1.95 },
+      spreads: { home: { point: -0.5, price: 1.85 }, away: { point: 0.5, price: 1.95 } },
     },
   },
 };

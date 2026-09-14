@@ -32,7 +32,12 @@ async function fetchOddsForSport(sportKey) {
   const url = new URL(`${config.oddsApi.baseUrl}/sports/${sportKey}/odds`);
   url.searchParams.set("apiKey", config.oddsApi.apiKey);
   url.searchParams.set("bookmakers", config.oddsApi.bookmakerKey);
-  url.searchParams.set("markets", "h2h,totals,btts");
+  // h2h = 1X2, totals = mas/menos goles (linea principal), btts = ambos
+  // marcan, draw_no_bet = empate no apuesta, spreads = hándicap asiático
+  // (linea principal que ofrezca Winamax para ese partido). Cuantos mas
+  // mercados se piden, mas creditos gasta cada llamada en el plan gratuito
+  // de The Odds API (revisa tu consumo en https://the-odds-api.com/account).
+  url.searchParams.set("markets", "h2h,totals,btts,draw_no_bet,spreads");
   url.searchParams.set("oddsFormat", "decimal");
   url.searchParams.set("dateFormat", "iso");
 
@@ -52,7 +57,7 @@ async function fetchOddsForSport(sportKey) {
 }
 
 function extractMarkets(bookmakerData) {
-  const out = { h2h: null, totals_2_5: null, btts: null };
+  const out = { h2h: null, totals_2_5: null, btts: null, draw_no_bet: null, spreads: null };
   for (const market of bookmakerData.markets || []) {
     if (market.key === "h2h") {
       const home = market.outcomes.find((o) => o.name === bookmakerData.__homeTeam);
@@ -72,6 +77,22 @@ function extractMarkets(bookmakerData) {
       const yes = market.outcomes.find((o) => o.name === "Yes");
       const no = market.outcomes.find((o) => o.name === "No");
       out.btts = { yes: yes?.price ?? null, no: no?.price ?? null };
+    } else if (market.key === "draw_no_bet") {
+      const home = market.outcomes.find((o) => o.name === bookmakerData.__homeTeam);
+      const away = market.outcomes.find((o) => o.name === bookmakerData.__awayTeam);
+      if (home || away) out.draw_no_bet = { home: home?.price ?? null, away: away?.price ?? null };
+    } else if (market.key === "spreads") {
+      // Winamax normalmente solo ofrece una linea de hándicap por partido en
+      // este mercado (la "principal"); tomamos la pareja local/visitante tal
+      // cual venga.
+      const home = market.outcomes.find((o) => o.name === bookmakerData.__homeTeam);
+      const away = market.outcomes.find((o) => o.name === bookmakerData.__awayTeam);
+      if (home && away && home.point != null && away.point != null) {
+        out.spreads = {
+          home: { point: home.point, price: home.price ?? null },
+          away: { point: away.point, price: away.price ?? null },
+        };
+      }
     }
   }
   return out;
@@ -81,7 +102,7 @@ function extractMarkets(bookmakerData) {
  * Devuelve las cuotas de Winamax para un partido concreto (identificado por
  * equipos y fecha, tal y como vienen de football-data.org).
  */
-async function getOddsForMatch(match) {
+async function getOddsForMatch(match, { forceRefresh = false } = {}) {
   if (config.useMockData) {
     return mockOdds[match.id] || null;
   }
@@ -90,7 +111,16 @@ async function getOddsForMatch(match) {
   if (!sportKey) return null;
 
   const cacheKey = `odds_${sportKey}`;
-  let events = await cache.get(cacheKey);
+
+  // Igual que en footballDataClient: "Actualizar" salta la cache, pero como
+  // mucho una vez por minuto por deporte, para no gastar de mas los creditos
+  // (limitados) del plan gratuito de The Odds API.
+  let skipCache = false;
+  if (forceRefresh) {
+    skipCache = await cache.tryConsumeForceRefresh(cacheKey, 60000);
+  }
+
+  let events = skipCache ? null : await cache.get(cacheKey);
   if (!events) {
     try {
       events = await fetchOddsForSport(sportKey);

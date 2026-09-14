@@ -10,8 +10,8 @@ const { buildMarketCandidates } = require("../models/markets");
 const { generateMatchCommentary } = require("../models/commentary");
 const { isPriorityTeam } = require("../data/teams");
 
-async function getUpcomingMatchesSummary({ daysAhead = 14 } = {}) {
-  const matches = await footballData.getUpcomingMatches({ daysAhead });
+async function getUpcomingMatchesSummary({ daysAhead = 14, forceRefresh = false } = {}) {
+  const matches = await footballData.getUpcomingMatches({ daysAhead, forceRefresh });
   return matches.map((m) => ({
     id: m.id,
     utcDate: m.utcDate,
@@ -22,19 +22,19 @@ async function getUpcomingMatchesSummary({ daysAhead = 14 } = {}) {
   }));
 }
 
-async function buildFullMatchReport(matchId) {
-  const matches = await footballData.getUpcomingMatches({ daysAhead: 30 });
+async function buildFullMatchReport(matchId, { forceRefresh = false } = {}) {
+  const matches = await footballData.getUpcomingMatches({ daysAhead: 30, forceRefresh });
   const match = matches.find((m) => String(m.id) === String(matchId));
   if (!match) return null;
-  return buildReportForMatch(match);
+  return buildReportForMatch(match, { forceRefresh });
 }
 
-async function buildReportForMatch(match) {
+async function buildReportForMatch(match, { forceRefresh = false } = {}) {
   const [homeForm, awayForm, h2h, odds, homeInjuries, awayInjuries] = await Promise.all([
     footballData.getTeamForm(match.homeTeam.id),
     footballData.getTeamForm(match.awayTeam.id),
     footballData.getHeadToHead(match.id, match.homeTeam.id, match.awayTeam.id),
-    oddsApi.getOddsForMatch(match),
+    oddsApi.getOddsForMatch(match, { forceRefresh }),
     injuriesStore.listForTeam(match.homeTeam.id),
     injuriesStore.listForTeam(match.awayTeam.id),
   ]);
@@ -73,10 +73,10 @@ async function buildReportForMatch(match) {
  * tambien la lista plana de todos los candidatos (usado por el optimizador
  * para buscar patas alternativas en otros partidos disponibles).
  */
-async function getCandidatesForMatches(matchIds) {
-  const allMatches = await footballData.getUpcomingMatches({ daysAhead: 30 });
+async function getCandidatesForMatches(matchIds, { forceRefresh = false } = {}) {
+  const allMatches = await footballData.getUpcomingMatches({ daysAhead: 30, forceRefresh });
   const relevant = allMatches.filter((m) => matchIds.includes(String(m.id)));
-  const reports = await Promise.all(relevant.map((m) => buildReportForMatch(m)));
+  const reports = await Promise.all(relevant.map((m) => buildReportForMatch(m, { forceRefresh })));
 
   const candidatesByMatch = {};
   reports.forEach((r) => {
@@ -85,10 +85,10 @@ async function getCandidatesForMatches(matchIds) {
   return candidatesByMatch;
 }
 
-async function getAllCandidatesForUpcoming({ daysAhead = 14, limit = 8 } = {}) {
-  const allMatches = await footballData.getUpcomingMatches({ daysAhead });
+async function getAllCandidatesForUpcoming({ daysAhead = 14, limit = 8, forceRefresh = false } = {}) {
+  const allMatches = await footballData.getUpcomingMatches({ daysAhead, forceRefresh });
   const subset = allMatches.slice(0, limit);
-  const reports = await Promise.all(subset.map((m) => buildReportForMatch(m)));
+  const reports = await Promise.all(subset.map((m) => buildReportForMatch(m, { forceRefresh })));
   const candidatesByMatch = {};
   let all = [];
   reports.forEach((r) => {

@@ -6,9 +6,25 @@ const state = {
   matches: [],
   legs: [], // { matchId, market, selection, label, matchLabel, probability, odds }
   teams: [],
+  currentMatchId: null,
 };
 
 const el = (id) => document.getElementById(id);
+
+// Deja un boton en "Actualizando…" mientras se ejecuta `fn`, y lo devuelve a
+// su texto normal al terminar (tanto si sale bien como si falla).
+async function withButtonLoading(btn, loadingText, fn) {
+  if (!btn) return fn();
+  const original = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = loadingText;
+  try {
+    return await fn();
+  } finally {
+    btn.disabled = false;
+    btn.textContent = original;
+  }
+}
 
 async function api(path, options) {
   const res = await fetch(`/api${path}`, {
@@ -56,10 +72,10 @@ function formatDate(iso) {
   return d.toLocaleString("es-ES", { weekday: "short", day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
 }
 
-async function loadMatches() {
+async function loadMatches(forceRefresh = false) {
   const list = el("matches-list");
   try {
-    const { matches } = await api("/matches");
+    const { matches } = await api(`/matches${forceRefresh ? "?refresh=1" : ""}`);
     state.matches = matches;
     if (!matches.length) {
       list.innerHTML = `<p class="muted">No hay partidos programados en los próximos días para las competiciones seguidas.</p>`;
@@ -84,6 +100,10 @@ async function loadMatches() {
   }
 }
 
+el("refresh-matches-btn").addEventListener("click", () => {
+  withButtonLoading(el("refresh-matches-btn"), "Actualizando…", () => loadMatches(true));
+});
+
 // ---------- Match report ----------
 function probRow(label, value) {
   const pct = Math.round(value * 100);
@@ -102,17 +122,23 @@ function isLegAdded(candidate) {
   return state.legs.some((l) => legKey(l) === legKey(candidate));
 }
 
-async function openReport(matchId) {
+async function openReport(matchId, forceRefresh = false) {
+  state.currentMatchId = matchId;
   showTab("report");
   const content = el("report-content");
-  content.innerHTML = "Cargando informe…";
+  if (!forceRefresh) content.innerHTML = "Cargando informe…";
   try {
-    const report = await api(`/matches/${matchId}/report`);
+    const report = await api(`/matches/${matchId}/report${forceRefresh ? "?refresh=1" : ""}`);
     renderReport(report);
   } catch (e) {
     content.innerHTML = `<p class="muted">Error cargando el informe: ${escapeHtml(e.message)}</p>`;
   }
 }
+
+el("refresh-report-btn").addEventListener("click", () => {
+  if (!state.currentMatchId) return;
+  withButtonLoading(el("refresh-report-btn"), "Actualizando…", () => openReport(state.currentMatchId, true));
+});
 
 function renderReport(report) {
   const { match, probResult, commentary, candidates } = report;
@@ -242,13 +268,47 @@ function renderAnalysis(analysis) {
   el("optimize-result").innerHTML = "";
 }
 
+// Tras analizar (o refrescar), actualizamos en la lista de selecciones la
+// probabilidad/cuota mas reciente que haya devuelto el servidor, por si algo
+// cambio desde que se añadieron (sobre todo util con el boton "Actualizar").
+function updateLegsFromResolved(resolvedLegs) {
+  if (!Array.isArray(resolvedLegs)) return;
+  state.legs = state.legs.map((l) => {
+    const fresh = resolvedLegs.find((r) => legKey(r) === legKey(l));
+    return fresh ? { ...l, probability: fresh.probability, odds: fresh.odds } : l;
+  });
+  renderLegsList();
+}
+
+async function analyzeCombinadaLegs({ refresh = false } = {}) {
+  const analysis = await api("/combinada/analyze", {
+    method: "POST",
+    body: JSON.stringify({ legs: legsPayload(), refresh }),
+  });
+  updateLegsFromResolved(analysis.resolvedLegs);
+  renderAnalysis(analysis);
+}
+
 el("analyze-btn").addEventListener("click", async () => {
   try {
-    const analysis = await api("/combinada/analyze", { method: "POST", body: JSON.stringify({ legs: legsPayload() }) });
-    renderAnalysis(analysis);
+    await analyzeCombinadaLegs();
   } catch (e) {
     el("analysis-result").innerHTML = `<p class="muted">Error: ${escapeHtml(e.message)}</p>`;
   }
+});
+
+el("refresh-combinada-btn").addEventListener("click", () => {
+  if (!state.legs.length) {
+    el("analysis-result").innerHTML = `<p class="muted">Añade primero alguna selección desde "Partidos" para poder actualizar sus cuotas.</p>`;
+    return;
+  }
+  withButtonLoading(el("refresh-combinada-btn"), "Actualizando…", async () => {
+    try {
+      await analyzeCombinadaLegs({ refresh: true });
+    } catch (e) {
+      el("analysis-result").innerHTML = `<p class="muted">Error: ${escapeHtml(e.message)}</p>`;
+    }
+  });
 });
 
 function renderOptimizeResult(result, goal) {
@@ -352,6 +412,13 @@ async function loadInjuriesList() {
     });
   });
 }
+
+el("refresh-injuries-btn").addEventListener("click", () => {
+  withButtonLoading(el("refresh-injuries-btn"), "Actualizando…", async () => {
+    await loadInjuriesTeams();
+    await loadInjuriesList();
+  });
+});
 
 el("injury-form").addEventListener("submit", async (e) => {
   e.preventDefault();

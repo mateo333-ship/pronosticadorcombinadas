@@ -6,9 +6,9 @@ const { optimizeCombinada } = require("../models/optimizer");
 const { RESPONSIBLE_GAMBLING_NOTE } = require("../models/commentary");
 
 // legs de entrada esperadas: [{ matchId, market, selection, manualOdds? }]
-async function resolveLegs(inputLegs) {
+async function resolveLegs(inputLegs, { forceRefresh = false } = {}) {
   const matchIds = [...new Set(inputLegs.map((l) => String(l.matchId)))];
-  const candidatesByMatch = await matchService.getCandidatesForMatches(matchIds);
+  const candidatesByMatch = await matchService.getCandidatesForMatches(matchIds, { forceRefresh });
 
   const resolved = [];
   const missing = [];
@@ -31,11 +31,13 @@ async function resolveLegs(inputLegs) {
 
 router.post("/analyze", async (req, res) => {
   try {
-    const { legs } = req.body;
+    const { legs, refresh } = req.body;
     if (!Array.isArray(legs) || !legs.length) {
       return res.status(400).json({ error: "Debes enviar al menos una selección en 'legs'." });
     }
-    const { resolved, missing } = await resolveLegs(legs);
+    // refresh=true (boton "Actualizar" del frontend en la pestaña Combinada):
+    // vuelve a pedir cuotas frescas a Winamax para las selecciones actuales.
+    const { resolved, missing } = await resolveLegs(legs, { forceRefresh: !!refresh });
     if (missing.length) {
       return res.status(400).json({
         error: "Alguna selección no se ha podido resolver (revisa matchId/market/selection).",
@@ -43,7 +45,10 @@ router.post("/analyze", async (req, res) => {
       });
     }
     const analysis = analyzeCombinada(resolved);
-    res.json({ ...analysis, responsibleGamblingNote: RESPONSIBLE_GAMBLING_NOTE });
+    // Devolvemos tambien las selecciones "resueltas" (con la probabilidad y
+    // cuota mas recientes) para que el frontend pueda refrescar lo que
+    // muestra en la lista de selecciones, no solo el resultado del analisis.
+    res.json({ ...analysis, resolvedLegs: resolved, responsibleGamblingNote: RESPONSIBLE_GAMBLING_NOTE });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Error analizando la combinada", detail: err.message });
@@ -52,14 +57,15 @@ router.post("/analyze", async (req, res) => {
 
 router.post("/optimize", async (req, res) => {
   try {
-    const { legs, goal, minProbability } = req.body;
+    const { legs, goal, minProbability, refresh } = req.body;
     if (!Array.isArray(legs) || !legs.length) {
       return res.status(400).json({ error: "Debes enviar al menos una selección en 'legs'." });
     }
     if (!["probabilidad", "cuota"].includes(goal)) {
       return res.status(400).json({ error: 'goal debe ser "probabilidad" o "cuota"' });
     }
-    const { resolved, missing, candidatesByMatch } = await resolveLegs(legs);
+    const forceRefresh = !!refresh;
+    const { resolved, missing, candidatesByMatch } = await resolveLegs(legs, { forceRefresh });
     if (missing.length) {
       return res.status(400).json({
         error: "Alguna selección no se ha podido resolver (revisa matchId/market/selection).",
@@ -70,7 +76,7 @@ router.post("/optimize", async (req, res) => {
     // Para el objetivo "cuota" tambien buscamos patas nuevas en otros
     // partidos disponibles (no solo alternativas dentro de los mismos
     // partidos de la combinada).
-    const { allCandidates } = await matchService.getAllCandidatesForUpcoming({ daysAhead: 14, limit: 6 });
+    const { allCandidates } = await matchService.getAllCandidatesForUpcoming({ daysAhead: 14, limit: 6, forceRefresh });
 
     const result = optimizeCombinada({
       legs: resolved,

@@ -28,22 +28,57 @@ function namesMatch(a, b) {
   return na === nb || na.includes(nb) || nb.includes(na);
 }
 
-async function fetchOddsForSport(sportKey) {
+// h2h = 1X2, totals = mas/menos goles (linea principal), btts = ambos marcan,
+// draw_no_bet = empate no apuesta, spreads = hándicap asiático (linea
+// principal que ofrezca Winamax para ese partido). Cuantos mas mercados se
+// piden, mas creditos gasta cada llamada en el plan gratuito de The Odds API
+// (revisa tu consumo en https://the-odds-api.com/account).
+const DEFAULT_MARKETS = ["h2h", "totals", "btts", "draw_no_bet", "spreads"];
+
+// Si The Odds API responde 422 "Markets not supported by this endpoint: X, Y"
+// extraemos que mercados son los problematicos, para poder reintentar sin
+// ellos en vez de perder TODOS los mercados (incluido el 1X2, que si suele
+// estar disponible) por culpa de uno o dos que no lo estan para esta
+// liga/bookmaker en concreto. Esto puede variar por competicion o cambiar con
+// el tiempo por parte de The Odds API, asi que es mas robusto detectarlo que
+// dar por hecho una lista fija.
+function parseUnsupportedMarkets(message) {
+  const match = /markets not supported[^:]*:\s*(.+)$/i.exec(message || "");
+  if (!match) return [];
+  return match[1]
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+async function fetchOddsForSport(sportKey, markets = DEFAULT_MARKETS) {
   const url = new URL(`${config.oddsApi.baseUrl}/sports/${sportKey}/odds`);
   url.searchParams.set("apiKey", config.oddsApi.apiKey);
   url.searchParams.set("bookmakers", config.oddsApi.bookmakerKey);
-  // h2h = 1X2, totals = mas/menos goles (linea principal), btts = ambos
-  // marcan, draw_no_bet = empate no apuesta, spreads = hándicap asiático
-  // (linea principal que ofrezca Winamax para ese partido). Cuantos mas
-  // mercados se piden, mas creditos gasta cada llamada en el plan gratuito
-  // de The Odds API (revisa tu consumo en https://the-odds-api.com/account).
-  url.searchParams.set("markets", "h2h,totals,btts,draw_no_bet,spreads");
+  url.searchParams.set("markets", markets.join(","));
   url.searchParams.set("oddsFormat", "decimal");
   url.searchParams.set("dateFormat", "iso");
 
   const res = await fetch(url);
   if (!res.ok) {
     const body = await res.text().catch(() => "");
+    if (res.status === 422) {
+      try {
+        const parsed = JSON.parse(body);
+        if (parsed.error_code === "INVALID_MARKET") {
+          const unsupported = parseUnsupportedMarkets(parsed.message);
+          const remaining = markets.filter((m) => !unsupported.includes(m));
+          if (unsupported.length && remaining.length && remaining.length < markets.length) {
+            console.warn(
+              `[oddsApi] ${sportKey}: mercados no soportados (${unsupported.join(", ")}), reintentando con [${remaining.join(", ")}]`
+            );
+            return fetchOddsForSport(sportKey, remaining);
+          }
+        }
+      } catch (e) {
+        // si no podemos interpretar el cuerpo del error, caemos al error generico de abajo
+      }
+    }
     throw new Error(`the-odds-api ${res.status} ${res.statusText}: ${body.slice(0, 300)}`);
   }
   // El plan gratuito descuenta "creditos" segun cabeceras de respuesta; los
